@@ -4,7 +4,7 @@ Plataforma SaaS Multi-Tenant de control de inventario y kardex construida con **
 
 ## 🚀 Enlaces de Entrega
 
-- **URL de Producción:** `https://tu-app-en-produccion.up.railway.app` *(Reemplazar tras desplegar)*
+- **URL de Producción:** `https://inventario.claudio-leiva.com` *(Reemplazar tras desplegar)*
 - **Documentación del Flujo con IA:** Ver archivo [`ai-workflow.md`](./ai-workflow.md) en la raíz del proyecto.
 
 ## 🔑 Credenciales de Prueba (Incluyen Acceso en 1 Clic en `/login`)
