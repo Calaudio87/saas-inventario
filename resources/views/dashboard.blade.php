@@ -24,6 +24,25 @@
                     + Registrar Movimiento
                 </button>
 
+                <div class="flex flex-wrap items-center gap-2" x-data>
+
+                <button
+                    type="button"
+                    x-data="{ dark: document.documentElement.classList.contains('dark') }"
+                    @click="
+                        dark = !dark;
+                        document.documentElement.classList.toggle('dark', dark);
+                        localStorage.setItem('theme', dark ? 'dark' : 'light');
+                    "
+                    class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 text-sm font-medium shadow-sm transition"
+                    title="Cambiar entre modo claro y oscuro"
+                >
+                    <span x-show="!dark">🌙 Oscuro</span>
+                    <span x-show="dark" style="display: none;">☀️ Claro</span>
+                </button>
+
+                </div>
+
                 @can('manage-catalog')
                     <button
                         type="button"
