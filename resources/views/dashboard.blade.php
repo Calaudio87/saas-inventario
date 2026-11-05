@@ -136,6 +136,13 @@
                 >
                     Historial Kardex Reciente
                 </button>
+                <button
+                    @click="activeTab = 'accounting'"
+                    :class="activeTab === 'accounting' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition"
+                >
+                    Contabilidad: FIFO, CPP y Deterioro NIC 2
+                </button>
                 @can('manage-users')
                     <button
                         @click="activeTab = 'team'"
@@ -342,6 +349,120 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        {{-- TAB CONTABLE: Ciclo de Rotación (DIO), Deterioro NIC 2 y Capas FIFO + CPP --}}
+        <div x-show="activeTab === 'accounting'" style="display: none;" class="space-y-6">
+            {{-- Resumen Ejecutivo de Rotación de Negocio y Valor Neto Realizable --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white rounded-xl shadow-sm border border-indigo-100 p-5">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-indigo-600">Ciclo de Renovación Completa (DIO)</p>
+                    <p class="mt-2 text-2xl font-bold text-gray-900">
+                        {{ $turnoverMetrics['days_to_rotate_inventory'] ? $turnoverMetrics['days_to_rotate_inventory'] . ' días' : 'Sin salidas' }}
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Rotación: <strong>{{ $turnoverMetrics['period_turnover_ratio'] }}x</strong> mensual ({{ $turnoverMetrics['annualized_turnover_ratio'] }}x anual) · COGS 30d: ${{ number_format($turnoverMetrics['period_cogs'], 2) }}
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Valor Bruto FIFO vs. Promedio Ponderado</p>
+                    <p class="mt-2 text-2xl font-bold text-gray-900">
+                        FIFO: ${{ number_format($obsolescenceReport['gross_fifo_valuation'], 2) }}
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Valorizado a Costo Promedio Ponderado (CPP): <strong>${{ number_format($turnoverMetrics['current_wac_valuation'], 2) }}</strong>
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-5">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Deterioro / Provisión Obsolescencia (NIC 2)</p>
+                    <p class="mt-2 text-2xl font-bold text-rose-600">
+                        -${{ number_format($obsolescenceReport['obsolescence_provision'], 2) }}
+                    </p>
+                    <p class="mt-1 text-xs text-gray-600">
+                        Valor Neto Realizable (VNR): <strong class="text-emerald-700">${{ number_format($obsolescenceReport['net_realizable_value'], 2) }}</strong>
+                    </p>
+                </div>
+            </div>
+
+            {{-- Matriz de Antigüedad de Inventario (Aging & Deterioro) --}}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                    <h3 class="text-sm font-bold text-gray-900">Matriz de Antigüedad de Stock y Provisión por Deterioro (NIC 2)</h3>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+                    @foreach ($obsolescenceReport['buckets'] as $bucket)
+                        <div class="p-4">
+                            <p class="text-xs font-semibold text-gray-600">{{ $bucket['label'] }}</p>
+                            <p class="mt-1 text-lg font-bold text-gray-900">{{ number_format($bucket['units']) }} uds.</p>
+                            <p class="text-xs text-gray-500">Valor Bruto: ${{ number_format($bucket['gross_value'], 2) }}</p>
+                            <p class="text-xs font-semibold {{ $bucket['provision'] > 0 ? 'text-rose-600' : 'text-emerald-600' }}">
+                                Provisión: ${{ number_format($bucket['provision'], 2) }}
+                            </p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Tabla de Capas FIFO Activas (Orden PEPS: Primero en Entrar, Primero en Salir) --}}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-5 border-b border-gray-100">
+                    <h3 class="text-base font-bold text-gray-900">Capas de Inventario Activas Ordenadas por FIFO (PEPS)</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        Las próximas salidas de mercadería consumirán automáticamente las filas superiores (lotes más antiguos). Se muestra comparativa contra el Costo Promedio Ponderado (CPP) vigente.
+                    </p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-semibold">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Orden FIFO / Fecha Entrada</th>
+                                <th class="px-4 py-3 text-left">Lote / Ref</th>
+                                <th class="px-4 py-3 text-left">Producto</th>
+                                <th class="px-4 py-3 text-center">Saldo Lote / Inicial</th>
+                                <th class="px-4 py-3 text-right">Costo Lote (FIFO)</th>
+                                <th class="px-4 py-3 text-right">CPP Vigente</th>
+                                <th class="px-4 py-3 text-right">Subtotal Lote</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @forelse ($fifoBatches as $idx => $batch)
+                                <tr class="{{ $idx === 0 ? 'bg-indigo-50/40' : '' }}">
+                                    <td class="px-4 py-3 text-xs whitespace-nowrap">
+                                        <span class="font-bold text-indigo-600">#{{ $idx + 1 }}</span>
+                                        · {{ $batch->created_at->format('d/m/Y') }}
+                                        <span class="text-gray-400">({{ (int) $batch->created_at->diffInDays(now()) }}d)</span>
+                                    </td>
+                                    <td class="px-4 py-3 font-mono text-xs text-gray-600">
+                                        {{ $batch->batch_code ?? $batch->reference }}
+                                    </td>
+                                    <td class="px-4 py-3 font-medium text-gray-900">
+                                        {{ $batch->product?->name }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="font-bold text-emerald-700">{{ $batch->remaining_quantity }}</span>
+                                        <span class="text-xs text-gray-400">/ {{ $batch->quantity }} uds.</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-medium text-gray-900">
+                                        ${{ number_format($batch->unit_cost, 2) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-indigo-700 font-semibold">
+                                        ${{ number_format($batch->running_avg_cost, 2) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-bold text-gray-900">
+                                        ${{ number_format($batch->remaining_quantity * $batch->unit_cost, 2) }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No hay lotes activos en inventario.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 

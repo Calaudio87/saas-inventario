@@ -22,14 +22,20 @@ class Product extends Model
         'category',
         'description',
         'price',
+        'default_unit_cost',
+        'weighted_average_cost',
         'min_stock_alert',
+        'shelf_life_days',
     ];
 
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
+            'default_unit_cost' => 'decimal:2',
+            'weighted_average_cost' => 'decimal:4',
             'min_stock_alert' => 'integer',
+            'shelf_life_days' => 'integer',
         ];
     }
 

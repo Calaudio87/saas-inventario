@@ -22,15 +22,31 @@ class StockMovement extends Model
         'user_id',
         'type',
         'quantity',
+        'unit_cost',
+        'total_cost',
+        'remaining_quantity',
         'reason',
         'reference',
+        'batch_code',
+        'expires_at',
+        'running_qty_balance',
+        'running_avg_cost',
+        'running_valuation',
         'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array
     {
         return [
             'quantity' => 'integer',
+            'remaining_quantity' => 'integer',
+            'unit_cost' => 'decimal:4',
+            'total_cost' => 'decimal:2',
+            'running_qty_balance' => 'decimal:2',
+            'running_avg_cost' => 'decimal:4',
+            'running_valuation' => 'decimal:2',
+            'expires_at' => 'date',
         ];
     }
 

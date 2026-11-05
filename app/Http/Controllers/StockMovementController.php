@@ -3,16 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
-use App\Models\StockMovement;
+use App\Services\InventoryAccountingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 
 class StockMovementController extends Controller
 {
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, InventoryAccountingService $accountingService): RedirectResponse
     {
         Gate::authorize('record-movements');
 
@@ -20,36 +18,30 @@ class StockMovementController extends Controller
             'product_id' => ['required', 'integer'],
             'type' => ['required', 'in:in,out'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0'],
             'reason' => ['required', 'string', 'max:255'],
             'reference' => ['nullable', 'string', 'max:100'],
+            'batch_code' => ['nullable', 'string', 'max:64'],
+            'expires_at' => ['nullable', 'date'],
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
-            // El Global Scope TenantScope garantiza que solo se resuelvan productos del Tenant actual
-            $product = Product::query()
-                ->withCalculatedStock()
-                ->lockForUpdate()
-                ->findOrFail($validated['product_id']);
+        $product = Product::query()->findOrFail($validated['product_id']);
 
-            if ($validated['type'] === StockMovement::TYPE_OUT && $product->current_stock < $validated['quantity']) {
-                throw ValidationException::withMessages([
-                    'quantity' => "Stock insuficiente para «{$product->name}». Disponible actual: {$product->current_stock} uds.",
-                ]);
-            }
-
-            StockMovement::create([
-                'product_id' => $product->id,
-                'user_id' => $request->user()->id,
-                'type' => $validated['type'],
-                'quantity' => (int) $validated['quantity'],
-                'reason' => $validated['reason'],
-                'reference' => $validated['reference'] ?? null,
-            ]);
-        });
+        $accountingService->recordValuedMovement(
+            product: $product,
+            userId: $request->user()->id,
+            type: $validated['type'],
+            quantity: (int) $validated['quantity'],
+            unitCost: isset($validated['unit_cost']) ? (float) $validated['unit_cost'] : null,
+            reason: $validated['reason'],
+            reference: $validated['reference'] ?? null,
+            batchCode: $validated['batch_code'] ?? null,
+            expiresAt: $validated['expires_at'] ?? null,
+        );
 
         $tipoTexto = $validated['type'] === 'in' ? 'Entrada' : 'Salida';
 
         return redirect()->route('dashboard')
-            ->with('status', "{$tipoTexto} de {$validated['quantity']} uds. registrada correctamente.");
+            ->with('status', "{$tipoTexto} de {$validated['quantity']} uds. valorizada (FIFO + CPP) correctamente.");
     }
 }

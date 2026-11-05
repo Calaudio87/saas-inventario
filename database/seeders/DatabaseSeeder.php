@@ -342,7 +342,11 @@ class DatabaseSeeder extends Seeder
 
     private function seedTenantCatalog(Tenant $tenant, array $catalog): void
     {
-        foreach ($catalog as $item) {
+        $accountingService = app(\App\Services\InventoryAccountingService::class);
+
+        foreach ($catalog as $index => $item) {
+            $baseCost = round($item['price'] * 0.62, 2);
+
             $product = Product::create([
                 'tenant_id' => $tenant->id,
                 'sku' => $item['sku'],
@@ -350,24 +354,50 @@ class DatabaseSeeder extends Seeder
                 'category' => $item['category'],
                 'description' => $item['description'],
                 'price' => $item['price'],
+                'default_unit_cost' => $baseCost,
+                'weighted_average_cost' => $baseCost,
                 'min_stock_alert' => $item['min_stock_alert'],
             ]);
 
-            foreach ($item['movements'] as $mov) {
-                $timestamp = now()->subDays($mov['days_ago'])->setTime(rand(8, 19), rand(0, 59));
+            // Lote histórico antiguo (hace 95 días) en los primeros 3 productos para demostrar Deterioro/Obsolescencia (NIC 2)
+            if ($index < 3) {
+                $oldDate = now()->subDays(95);
+                $oldBatch = $accountingService->recordValuedMovement(
+                    product: $product,
+                    userId: $item['movements'][0]['user']->id,
+                    type: 'in',
+                    quantity: 20,
+                    unitCost: round($baseCost * 0.94, 2),
+                    reason: 'Saldo lote trimestre anterior (Rotación lenta)',
+                    reference: 'INV-ANT-0' . ($index + 1),
+                    batchCode: 'LOTE-ANT-' . $item['sku'],
+                    expiresAt: now()->addDays(45)->toDateString()
+                );
+                $oldBatch-> ForceFill(['created_at' => $oldDate, 'updated_at' => $oldDate])->save();
+            }
 
-                StockMovement::create([
-                    'tenant_id' => $tenant->id,
-                    'product_id' => $product->id,
-                    'user_id' => $mov['user']->id,
-                    'type' => $mov['type'],
-                    'quantity' => $mov['qty'],
-                    'reason' => $mov['reason'],
-                    'reference' => $mov['ref'],
-                    'created_at' => $timestamp,
-                    'updated_at' => $timestamp,
-                ]);
+            foreach ($item['movements'] as $movIdx => $mov) {
+                $timestamp = now()->subDays($mov['days_ago'])->setTime(rand(8, 19), rand(0, 59));
+                // Variación realista de costo de compra (+4% en segundas compras para ver el efecto del Promedio Ponderado)
+                $entryCost = $mov['type'] === 'in'
+                    ? round($baseCost * (1 + ($movIdx * 0.03)), 2)
+                    : null;
+
+                $movement = $accountingService->recordValuedMovement(
+                    product: $product,
+                    userId: $mov['user']->id,
+                    type: $mov['type'],
+                    quantity: $mov['qty'],
+                    unitCost: $entryCost,
+                    reason: $mov['reason'],
+                    reference: $mov['ref'],
+                    batchCode: $mov['type'] === 'in' ? ('LOTE-' . $mov['ref']) : null,
+                    expiresAt: $mov['type'] === 'in' ? now()->addMonths(6)->toDateString() : null
+                );
+
+                $movement->forceFill(['created_at' => $timestamp, 'updated_at' => $timestamp])->save();
             }
         }
     }
+
 }
